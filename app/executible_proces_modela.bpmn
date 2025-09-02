@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.22.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.21.0">
-  <bpmn:process id="Process_Return_Request" name="Proces Povrata Proizvoda" isExecutable="true" camunda:versionTag="1.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.21.0">
+  <bpmn:process id="Process_Return_Request" name="Proces Povrata Proizvoda" isExecutable="true" camunda:versionTag="1.0" camunda:historyTimeToLive="P5D">
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_ReturnsDept" name="Služba za Povrate">
         <bpmn:flowNodeRef>StartEvent_ReturnRequestReceived</bpmn:flowNodeRef>
@@ -17,9 +17,33 @@
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_ReturnRequestReceived" name="Primljen zahtjev za povrat">
       <bpmn:outgoing>Flow_0yv5265</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MessageEventDefinition_0i0gch6" messageRef="Message_ReturnRequest" />
     </bpmn:startEvent>
-    <bpmn:serviceTask id="Activity_ValidateRequest" name="Validacija zahtjeva (API)" camunda:type="external" camunda:topic="validate-request">
+    <bpmn:serviceTask id="Activity_ValidateRequest" name="Validacija zahtjeva (API)">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://host.docker.internal:3000/validate</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="JavaScript">var payload = {
+  "orderId": execution.getVariable("orderId"),
+  "purchaseDate": execution.getVariable("purchaseDate")
+};
+JSON.stringify(payload);</camunda:script>
+            </camunda:inputParameter>
+            <camunda:outputParameter name="isApproved">
+              <camunda:script scriptFormat="JavaScript">var response = S(response);
+response.jsonPath('$.approved').boolValue();</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_0yv5265</bpmn:incoming>
       <bpmn:outgoing>Flow_0k6a78i</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -28,7 +52,7 @@
       <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
       <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sendTask id="Activity_NotifyRejection" name="Obavijesti kupca o odbijanju" camunda:type="external" camunda:topic="notify-customer">
+    <bpmn:sendTask id="Activity_NotifyRejection" name="Obavijesti kupca o odbijanju" camunda:type="external" camunda:topic="notify-rejection">
       <bpmn:incoming>Flow_Rejected</bpmn:incoming>
       <bpmn:outgoing>Flow_1u3i2u1</bpmn:outgoing>
     </bpmn:sendTask>
@@ -36,13 +60,6 @@
       <bpmn:incoming>Flow_1u3i2u1</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:userTask id="Activity_ApproveReturn" name="Odobri povrat i pošalji upute" camunda:assignee="demo">
-      <bpmn:extensionElements>
-        <camunda:formData>
-          <camunda:formField id="returnReason" label="Razlog povrata" type="string" />
-          <camunda:formField id="approved" label="Odobri povrat?" type="boolean" />
-          <camunda:formField id="notes" label="Interne zabilješke" type="string" />
-        </camunda:formData>
-      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Approved</bpmn:incoming>
       <bpmn:outgoing>Flow_0f612wn</bpmn:outgoing>
     </bpmn:userTask>
@@ -52,16 +69,31 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_1q5g5i9" messageRef="Message_PackageReceived" />
     </bpmn:intermediateCatchEvent>
     <bpmn:userTask id="Activity_InspectItem" name="Pregledaj vraćeni artikl" camunda:assignee="demo">
-      <bpmn:extensionElements>
-        <camunda:formData>
-          <camunda:formField id="itemCondition" label="Stanje artikla (A-Grade, B-Grade)" type="string" />
-          <camunda:formField id="refundAmount" label="Iznos za povrat (EUR)" type="double" />
-        </camunda:formData>
-      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1s2qw81</bpmn:incoming>
       <bpmn:outgoing>Flow_0xpxq8m</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="Activity_ProcessRefund" name="Izvrši povrat novca (API)" camunda:type="external" camunda:topic="process-refund">
+    <bpmn:serviceTask id="Activity_ProcessRefund" name="Izvrši povrat novca (API)">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://host.docker.internal:3001/refund</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="JavaScript">var payload = {
+  "orderId": execution.getVariable("orderId"),
+  "refundAmount": execution.getVariable("refundAmount")
+};
+JSON.stringify(payload);</camunda:script>
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_0xpxq8m</bpmn:incoming>
       <bpmn:outgoing>Flow_1c1v5m4</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -71,10 +103,10 @@
     <bpmn:sequenceFlow id="Flow_0yv5265" sourceRef="StartEvent_ReturnRequestReceived" targetRef="Activity_ValidateRequest" />
     <bpmn:sequenceFlow id="Flow_0k6a78i" sourceRef="Activity_ValidateRequest" targetRef="Gateway_RequestValid" />
     <bpmn:sequenceFlow id="Flow_Approved" name="Da" sourceRef="Gateway_RequestValid" targetRef="Activity_ApproveReturn">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${validationResult.approved}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isApproved == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Rejected" name="Ne" sourceRef="Gateway_RequestValid" targetRef="Activity_NotifyRejection">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!validationResult.approved}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isApproved == false}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1u3i2u1" sourceRef="Activity_NotifyRejection" targetRef="Event_ReturnRejected" />
     <bpmn:sequenceFlow id="Flow_0f612wn" sourceRef="Activity_ApproveReturn" targetRef="Event_PackageReceived" />
@@ -82,7 +114,6 @@
     <bpmn:sequenceFlow id="Flow_0xpxq8m" sourceRef="Activity_InspectItem" targetRef="Activity_ProcessRefund" />
     <bpmn:sequenceFlow id="Flow_1c1v5m4" sourceRef="Activity_ProcessRefund" targetRef="Event_ProcessFinished" />
   </bpmn:process>
-  <bpmn:message id="Message_ReturnRequest" name="Msg_ReturnRequestSubmitted" />
   <bpmn:message id="Message_PackageReceived" name="Msg_PackageScannedAtWarehouse" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_Return_Request">
@@ -98,6 +129,7 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_ValidateRequest_di" bpmnElement="Activity_ValidateRequest">
         <dc:Bounds x="300" y="210" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_RequestValid_di" bpmnElement="Gateway_RequestValid" isMarkerVisible="true">
         <dc:Bounds x="455" y="225" width="50" height="50" />
@@ -147,7 +179,7 @@
         <di:waypoint x="505" y="250" />
         <di:waypoint x="560" y="250" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="526" y="232" width="17" height="14" />
+          <dc:Bounds x="527" y="232" width="15" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">
@@ -181,3 +213,4 @@
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
+

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.22.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.21.0">
+  <bpmn:process id="Process_Return_Request" name="Proces Povrata Proizvoda" isExecutable="true" camunda:versionTag="1.0">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_ReturnsDept" name="Služba za Povrate">
+        <bpmn:flowNodeRef>StartEvent_ReturnRequestReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ValidateRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RequestValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_NotifyRejection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_ReturnRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ApproveReturn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_PackageReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_InspectItem</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ProcessRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_ProcessFinished</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_ReturnRequestReceived" name="Primljen zahtjev za povrat">
+      <bpmn:outgoing>Flow_0yv5265</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_0i0gch6" messageRef="Message_ReturnRequest" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Activity_ValidateRequest" name="Validacija zahtjeva (API)" camunda:type="external" camunda:topic="validate-request">
+      <bpmn:incoming>Flow_0yv5265</bpmn:incoming>
+      <bpmn:outgoing>Flow_0k6a78i</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_RequestValid" name="Zahtjev ispravan?">
+      <bpmn:incoming>Flow_0k6a78i</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sendTask id="Activity_NotifyRejection" name="Obavijesti kupca o odbijanju" camunda:type="external" camunda:topic="notify-customer">
+      <bpmn:incoming>Flow_Rejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_1u3i2u1</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="Event_ReturnRejected" name="Povrat odbijen">
+      <bpmn:incoming>Flow_1u3i2u1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_ApproveReturn" name="Odobri povrat i pošalji upute" camunda:assignee="demo">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="returnReason" label="Razlog povrata" type="string" />
+          <camunda:formField id="approved" label="Odobri povrat?" type="boolean" />
+          <camunda:formField id="notes" label="Interne zabilješke" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_0f612wn</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Event_PackageReceived" name="Čekaj na zaprimanje paketa">
+      <bpmn:incoming>Flow_0f612wn</bpmn:incoming>
+      <bpmn:outgoing>Flow_1s2qw81</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1q5g5i9" messageRef="Message_PackageReceived" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_InspectItem" name="Pregledaj vraćeni artikl" camunda:assignee="demo">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="itemCondition" label="Stanje artikla (A-Grade, B-Grade)" type="string" />
+          <camunda:formField id="refundAmount" label="Iznos za povrat (EUR)" type="double" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1s2qw81</bpmn:incoming>
+      <bpmn:outgoing>Flow_0xpxq8m</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_ProcessRefund" name="Izvrši povrat novca (API)" camunda:type="external" camunda:topic="process-refund">
+      <bpmn:incoming>Flow_0xpxq8m</bpmn:incoming>
+      <bpmn:outgoing>Flow_1c1v5m4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_ProcessFinished" name="Proces završen">
+      <bpmn:incoming>Flow_1c1v5m4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0yv5265" sourceRef="StartEvent_ReturnRequestReceived" targetRef="Activity_ValidateRequest" />
+    <bpmn:sequenceFlow id="Flow_0k6a78i" sourceRef="Activity_ValidateRequest" targetRef="Gateway_RequestValid" />
+    <bpmn:sequenceFlow id="Flow_Approved" name="Da" sourceRef="Gateway_RequestValid" targetRef="Activity_ApproveReturn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${validationResult.approved}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Rejected" name="Ne" sourceRef="Gateway_RequestValid" targetRef="Activity_NotifyRejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!validationResult.approved}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1u3i2u1" sourceRef="Activity_NotifyRejection" targetRef="Event_ReturnRejected" />
+    <bpmn:sequenceFlow id="Flow_0f612wn" sourceRef="Activity_ApproveReturn" targetRef="Event_PackageReceived" />
+    <bpmn:sequenceFlow id="Flow_1s2qw81" sourceRef="Event_PackageReceived" targetRef="Activity_InspectItem" />
+    <bpmn:sequenceFlow id="Flow_0xpxq8m" sourceRef="Activity_InspectItem" targetRef="Activity_ProcessRefund" />
+    <bpmn:sequenceFlow id="Flow_1c1v5m4" sourceRef="Activity_ProcessRefund" targetRef="Event_ProcessFinished" />
+  </bpmn:process>
+  <bpmn:message id="Message_ReturnRequest" name="Msg_ReturnRequestSubmitted" />
+  <bpmn:message id="Message_PackageReceived" name="Msg_PackageScannedAtWarehouse" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_Return_Request">
+      <bpmndi:BPMNShape id="Lane_ReturnsDept_di" bpmnElement="Lane_ReturnsDept" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1440" height="350" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReturnRequestReceived_di" bpmnElement="StartEvent_ReturnRequestReceived">
+        <dc:Bounds x="212" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="193" y="275" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ValidateRequest_di" bpmnElement="Activity_ValidateRequest">
+        <dc:Bounds x="300" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RequestValid_di" bpmnElement="Gateway_RequestValid" isMarkerVisible="true">
+        <dc:Bounds x="455" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="436" y="282" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_NotifyRejection_di" bpmnElement="Activity_NotifyRejection">
+        <dc:Bounds x="560" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_ReturnRejected_di" bpmnElement="Event_ReturnRejected">
+        <dc:Bounds x="722" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="702" y="175" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ApproveReturn_di" bpmnElement="Activity_ApproveReturn">
+        <dc:Bounds x="560" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_PackageReceived_di" bpmnElement="Event_PackageReceived">
+        <dc:Bounds x="722" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="696" y="275" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_InspectItem_di" bpmnElement="Activity_InspectItem">
+        <dc:Bounds x="820" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ProcessRefund_di" bpmnElement="Activity_ProcessRefund">
+        <dc:Bounds x="980" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_ProcessFinished_di" bpmnElement="Event_ProcessFinished">
+        <dc:Bounds x="1142" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1120" y="275" width="81" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0yv5265_di" bpmnElement="Flow_0yv5265">
+        <di:waypoint x="248" y="250" />
+        <di:waypoint x="300" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0k6a78i_di" bpmnElement="Flow_0k6a78i">
+        <di:waypoint x="400" y="250" />
+        <di:waypoint x="455" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
+        <di:waypoint x="505" y="250" />
+        <di:waypoint x="560" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="526" y="232" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">
+        <di:waypoint x="480" y="225" />
+        <di:waypoint x="480" y="150" />
+        <di:waypoint x="560" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="488" y="185" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1u3i2u1_di" bpmnElement="Flow_1u3i2u1">
+        <di:waypoint x="660" y="150" />
+        <di:waypoint x="722" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0f612wn_di" bpmnElement="Flow_0f612wn">
+        <di:waypoint x="660" y="250" />
+        <di:waypoint x="722" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1s2qw81_di" bpmnElement="Flow_1s2qw81">
+        <di:waypoint x="758" y="250" />
+        <di:waypoint x="820" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xpxq8m_di" bpmnElement="Flow_0xpxq8m">
+        <di:waypoint x="920" y="250" />
+        <di:waypoint x="980" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1c1v5m4_di" bpmnElement="Flow_1c1v5m4">
+        <di:waypoint x="1080" y="250" />
+        <di:waypoint x="1142" y="250" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

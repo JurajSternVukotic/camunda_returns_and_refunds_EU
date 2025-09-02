@@ -1,0 +1,663 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Customer" name="Kupac" processRef="Process_Customer" />
+    <bpmn:participant id="Participant_Retailer" name="Platforma trgovca" processRef="Process_Retailer" />
+    <bpmn:participant id="Participant_Carrier" name="Dostavna služba" processRef="Process_Carrier" />
+    <bpmn:participant id="Participant_Manufacturer" name="Proizvođač" />
+    <bpmn:messageFlow id="MessageFlow_ReturnRequest" sourceRef="Task_SubmitReturnRequest" targetRef="Task_ValidateEligibility" />
+    <bpmn:messageFlow id="MessageFlow_ReturnDocs" sourceRef="Task_SendAuthorization" targetRef="Task_PackageItem" />
+    <bpmn:messageFlow id="MessageFlow_PackageDropOff" sourceRef="Task_DropOffPackage" targetRef="Task_TransportParcel" />
+    <bpmn:messageFlow id="MessageFlow_CarrierScan" sourceRef="Task_TransportParcel" targetRef="Event_CarrierScanReceived" />
+    <bpmn:messageFlow id="MessageFlow_ReceiptNotification" sourceRef="Task_SendReceiptNotification" targetRef="Participant_Customer" />
+    <bpmn:messageFlow id="MessageFlow_RefundConfirmation" sourceRef="Task_SendRefundConfirmation" targetRef="Participant_Customer" />
+    <bpmn:messageFlow id="MessageFlow_WarrantyClaim" sourceRef="Task_SubmitWarrantyClaim" targetRef="Event_ClaimSubmitted" />
+    <bpmn:messageFlow id="MessageFlow_RedirectToManufacturer" sourceRef="Task_RedirectToManufacturer" targetRef="Participant_Manufacturer" />
+    <bpmn:messageFlow id="MessageFlow_WarrantyLabel" sourceRef="Task_SendWarrantyLabel" targetRef="Task_ShipDefectiveItem" />
+    <bpmn:messageFlow id="MessageFlow_DefectiveDropOff" sourceRef="Task_ShipDefectiveItem" targetRef="Task_TransportParcel" />
+    <bpmn:textAnnotation id="TextAnnotation_1">
+      <bpmn:text>Provjere: Vrijeme od dostave &lt;= 30 dana; Kategorija proizvoda NIJE u iznimkama (npr. higijenski, personalizirani)</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1" sourceRef="Task_ValidateEligibility" targetRef="TextAnnotation_1" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Customer" isExecutable="false">
+    <bpmn:userTask id="Task_ShipDefectiveItem" name="Slanje defektnog artikla" />
+    <bpmn:userTask id="Task_DropOffPackage" name="Predaja paketa dostavnoj službi">
+      <bpmn:incoming>Flow_C2</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PackageItem" name="Pakiranje artikla i priprema za slanje">
+      <bpmn:outgoing>Flow_C2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:startEvent id="Event_StartReturn" name="Donesena odluka nakon kupnje">
+      <bpmn:outgoing>Flow_C1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_SubmitReturnRequest" name="Podnošenje zahtjeva za povrat putem portala">
+      <bpmn:incoming>Flow_C1</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_SubmitWarrantyClaim" name="Podnošenje reklamacijskog zahtjeva (s opisom i dokazima)">
+      <bpmn:incoming>Flow_C3</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:startEvent id="Event_StartWarranty" name="Utvrđen defekt na proizvodu">
+      <bpmn:outgoing>Flow_C3</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_C2" sourceRef="Task_PackageItem" targetRef="Task_DropOffPackage" />
+    <bpmn:sequenceFlow id="Flow_C1" sourceRef="Event_StartReturn" targetRef="Task_SubmitReturnRequest" />
+    <bpmn:sequenceFlow id="Flow_C3" sourceRef="Event_StartWarranty" targetRef="Task_SubmitWarrantyClaim" />
+  </bpmn:process>
+  <bpmn:process id="Process_Retailer" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_Retailer">
+      <bpmn:lane id="Lane_CS" name="Korisnička Služba">
+        <bpmn:flowNodeRef>Event_ClaimSubmitted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriageClaim</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IsClaimValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyClaimRejection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_EndClaimRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ResolutionPath</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_EndEscalation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EscalationReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RedirectToManufacturer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendWarrantyLabel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RefundWithoutReturn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_EndClaimResolved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_EndClaimHandedOff</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Skladište i Centar za Povrate">
+        <bpmn:flowNodeRef>TextAnnotation_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RouteToResale</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RouteToRefurb</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ItemCondition</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GradeItemCondition</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendReceiptNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveParcel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_CarrierScanReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ValidateEligibility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RequestValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_TimerEscalation</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systems" name="Financije / Sustavi">
+        <bpmn:flowNodeRef>Event_EndRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendRefundConfirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ExecuteRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GenerateDocs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendAuthorization</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyRejection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_EndRejection</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:intermediateCatchEvent id="Event_ClaimSubmitted" name="Reklamacija podnesena">
+      <bpmn:outgoing>Flow_W1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Claim" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Task_TriageClaim" name="Obrada i validacija reklamacije">
+      <bpmn:incoming>Flow_W1</bpmn:incoming>
+      <bpmn:outgoing>Flow_W2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_IsClaimValid" name="Reklamacija ispravna?">
+      <bpmn:incoming>Flow_W2</bpmn:incoming>
+      <bpmn:outgoing>Flow_W_Valid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_W_Invalid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sendTask id="Task_NotifyClaimRejection" name="Obaviještavanje kupca o odbijanju reklamacije">
+      <bpmn:incoming>Flow_W_Invalid</bpmn:incoming>
+      <bpmn:outgoing>Flow_W5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="Event_EndClaimRejected" name="Reklamacija odbijena">
+      <bpmn:incoming>Flow_W5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_ResolutionPath" name="Način rješavanja?">
+      <bpmn:incoming>Flow_W_Valid</bpmn:incoming>
+      <bpmn:outgoing>Flow_W_Redirect</bpmn:outgoing>
+      <bpmn:outgoing>Flow_W_RefundNoReturn</bpmn:outgoing>
+      <bpmn:outgoing>Flow_W_ReturnForRefund</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_EndRefund" name="Proces povrata završen">
+      <bpmn:incoming>Flow_R11</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Task_SendRefundConfirmation" name="Slanje potvrde o povratu novca">
+      <bpmn:incoming>Flow_R10</bpmn:incoming>
+      <bpmn:outgoing>Flow_R11</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="Task_ExecuteRefund" name="Izvrši povrat novca">
+      <bpmn:incoming>Flow_R8</bpmn:incoming>
+      <bpmn:incoming>Flow_R9</bpmn:incoming>
+      <bpmn:outgoing>Flow_R10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="Task_RouteToResale" name="Preusmjeravanje u zalihu za preprodaju">
+      <bpmn:incoming>Flow_AGrade</bpmn:incoming>
+      <bpmn:outgoing>Flow_R8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_RouteToRefurb" name="Preusmjeravanje na obnovu/outlet">
+      <bpmn:incoming>Flow_BGrade</bpmn:incoming>
+      <bpmn:outgoing>Flow_R9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_ItemCondition" name="Stanje artikla?">
+      <bpmn:incoming>Flow_R7</bpmn:incoming>
+      <bpmn:outgoing>Flow_AGrade</bpmn:outgoing>
+      <bpmn:outgoing>Flow_BGrade</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_GradeItemCondition" name="Procjena stanja artikla za preprodaju">
+      <bpmn:incoming>Flow_R6</bpmn:incoming>
+      <bpmn:outgoing>Flow_R7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="Task_SendReceiptNotification" name="Slanje obavijesti o primitku paketa">
+      <bpmn:incoming>Flow_R5</bpmn:incoming>
+      <bpmn:outgoing>Flow_R6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:userTask id="Task_ReceiveParcel" name="Zaprimanje i skeniranje paketa">
+      <bpmn:incoming>Flow_R4</bpmn:incoming>
+      <bpmn:outgoing>Flow_R5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Event_CarrierScanReceived" name="Zaprimljen sken od dostavljača">
+      <bpmn:outgoing>Flow_R4</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_CarrierScan" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:businessRuleTask id="Task_ValidateEligibility" name="Validiraj prihvatljivost zahtjeva">
+      <bpmn:outgoing>Flow_R1</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_RequestValid" name="Zahtjev ispravan?">
+      <bpmn:incoming>Flow_R1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Valid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Invalid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_GenerateDocs" name="Generiranje povratne dokumentacije">
+      <bpmn:incoming>Flow_R2</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="Task_SendAuthorization" name="Slanje autorizacije i upute za povrat">
+      <bpmn:incoming>Flow_Valid</bpmn:incoming>
+      <bpmn:outgoing>Flow_R2</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="Task_NotifyRejection" name="Slanje obavijesti o odbitku">
+      <bpmn:incoming>Flow_Invalid</bpmn:incoming>
+      <bpmn:outgoing>Flow_R3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="Event_EndRejection" name="Slučaj zatvoren (Odbijen)">
+      <bpmn:incoming>Flow_R3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_EndEscalation" name="Slučaj eskaliran">
+      <bpmn:incoming>Flow_R13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_EscalationReview" name="Pozovi nadređenog / Eskaliraj">
+      <bpmn:incoming>Flow_R12</bpmn:incoming>
+      <bpmn:outgoing>Flow_R13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="Task_RedirectToManufacturer" name="Preusmjeravanje kupca do proizvođača">
+      <bpmn:incoming>Flow_W_Redirect</bpmn:incoming>
+      <bpmn:outgoing>Flow_W3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="Task_SendWarrantyLabel" name="Slanje plaćene povratne naljepnice">
+      <bpmn:incoming>Flow_W_ReturnForRefund</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="Task_RefundWithoutReturn" name="Izvršavanje povrata novca bez povrata artikla">
+      <bpmn:incoming>Flow_W_RefundNoReturn</bpmn:incoming>
+      <bpmn:outgoing>Flow_W4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_EndClaimResolved" name="Reklamacija riješena">
+      <bpmn:incoming>Flow_W4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="Event_TimerEscalation" name="Rok za povrat novca (14 dana)" attachedToRef="Task_ReceiveParcel">
+      <bpmn:outgoing>Flow_R12</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_W1" sourceRef="Event_ClaimSubmitted" targetRef="Task_TriageClaim" />
+    <bpmn:sequenceFlow id="Flow_W2" sourceRef="Task_TriageClaim" targetRef="Gateway_IsClaimValid" />
+    <bpmn:sequenceFlow id="Flow_W_Valid" name="[Da]" sourceRef="Gateway_IsClaimValid" targetRef="Gateway_ResolutionPath" />
+    <bpmn:sequenceFlow id="Flow_W_Invalid" name="[Ne]" sourceRef="Gateway_IsClaimValid" targetRef="Task_NotifyClaimRejection" />
+    <bpmn:sequenceFlow id="Flow_W5" sourceRef="Task_NotifyClaimRejection" targetRef="Event_EndClaimRejected" />
+    <bpmn:sequenceFlow id="Flow_W_Redirect" name="[Preusmjeravanje]" sourceRef="Gateway_ResolutionPath" targetRef="Task_RedirectToManufacturer" />
+    <bpmn:sequenceFlow id="Flow_W_RefundNoReturn" name="[Povrat novca bez povrata artikla]" sourceRef="Gateway_ResolutionPath" targetRef="Task_RefundWithoutReturn" />
+    <bpmn:sequenceFlow id="Flow_W_ReturnForRefund" name="[Povrat artikla za povrat novca]" sourceRef="Gateway_ResolutionPath" targetRef="Task_SendWarrantyLabel" />
+    <bpmn:sequenceFlow id="Flow_R11" sourceRef="Task_SendRefundConfirmation" targetRef="Event_EndRefund" />
+    <bpmn:sequenceFlow id="Flow_R10" sourceRef="Task_ExecuteRefund" targetRef="Task_SendRefundConfirmation" />
+    <bpmn:sequenceFlow id="Flow_R8" sourceRef="Task_RouteToResale" targetRef="Task_ExecuteRefund" />
+    <bpmn:sequenceFlow id="Flow_R9" sourceRef="Task_RouteToRefurb" targetRef="Task_ExecuteRefund" />
+    <bpmn:sequenceFlow id="Flow_AGrade" name="[A-Grade]" sourceRef="Gateway_ItemCondition" targetRef="Task_RouteToResale" />
+    <bpmn:sequenceFlow id="Flow_BGrade" name="[B/C-Grade]" sourceRef="Gateway_ItemCondition" targetRef="Task_RouteToRefurb" />
+    <bpmn:sequenceFlow id="Flow_R7" sourceRef="Task_GradeItemCondition" targetRef="Gateway_ItemCondition" />
+    <bpmn:sequenceFlow id="Flow_R6" sourceRef="Task_SendReceiptNotification" targetRef="Task_GradeItemCondition" />
+    <bpmn:sequenceFlow id="Flow_R5" sourceRef="Task_ReceiveParcel" targetRef="Task_SendReceiptNotification" />
+    <bpmn:sequenceFlow id="Flow_R4" sourceRef="Event_CarrierScanReceived" targetRef="Task_ReceiveParcel" />
+    <bpmn:sequenceFlow id="Flow_R1" sourceRef="Task_ValidateEligibility" targetRef="Gateway_RequestValid" />
+    <bpmn:sequenceFlow id="Flow_Valid" name="[Zahtjev ispravan]" sourceRef="Gateway_RequestValid" targetRef="Task_SendAuthorization" />
+    <bpmn:sequenceFlow id="Flow_Invalid" name="[Zahtjev neispravan]" sourceRef="Gateway_RequestValid" targetRef="Task_NotifyRejection" />
+    <bpmn:sequenceFlow id="Flow_R2" sourceRef="Task_SendAuthorization" targetRef="Task_GenerateDocs" />
+    <bpmn:sequenceFlow id="Flow_R3" sourceRef="Task_NotifyRejection" targetRef="Event_EndRejection" />
+    <bpmn:sequenceFlow id="Flow_R13" sourceRef="Task_EscalationReview" targetRef="Event_EndEscalation" />
+    <bpmn:sequenceFlow id="Flow_R12" sourceRef="Event_TimerEscalation" targetRef="Task_EscalationReview" />
+    <bpmn:sequenceFlow id="Flow_W3" sourceRef="Task_RedirectToManufacturer" targetRef="Event_EndClaimHandedOff" />
+    <bpmn:sequenceFlow id="Flow_W4" sourceRef="Task_RefundWithoutReturn" targetRef="Event_EndClaimResolved" />
+    <bpmn:endEvent id="Event_EndClaimHandedOff" name="Reklamacija prebačena">
+      <bpmn:incoming>Flow_W3</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_Carrier" isExecutable="false">
+    <bpmn:task id="Task_TransportParcel" name="Transportiranje paketa" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="Participant_Customer_di" bpmnElement="Participant_Customer" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2200" height="310" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ShipDefectiveItem_di" bpmnElement="Task_ShipDefectiveItem">
+        <dc:Bounds x="1410" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DropOffPackage_di" bpmnElement="Task_DropOffPackage">
+        <dc:Bounds x="1570" y="120" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PackageItem_di" bpmnElement="Task_PackageItem">
+        <dc:Bounds x="1180" y="120" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_StartReturn_di" bpmnElement="Event_StartReturn">
+        <dc:Bounds x="242" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="218" y="218" width="86" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SubmitReturnRequest_di" bpmnElement="Task_SubmitReturnRequest">
+        <dc:Bounds x="330" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SubmitWarrantyClaim_di" bpmnElement="Task_SubmitWarrantyClaim">
+        <dc:Bounds x="500" y="290" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_StartWarranty_di" bpmnElement="Event_StartWarranty">
+        <dc:Bounds x="412" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="387" y="348" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_C2_di" bpmnElement="Flow_C2">
+        <di:waypoint x="1280" y="160" />
+        <di:waypoint x="1570" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C1_di" bpmnElement="Flow_C1">
+        <di:waypoint x="278" y="200" />
+        <di:waypoint x="330" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C3_di" bpmnElement="Flow_C3">
+        <di:waypoint x="448" y="330" />
+        <di:waypoint x="500" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_Retailer_di" bpmnElement="Participant_Retailer" isHorizontal="true">
+        <dc:Bounds x="160" y="510" width="2200" height="850" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_CS_di" bpmnElement="Lane_CS" isHorizontal="true">
+        <dc:Bounds x="190" y="1060" width="2170" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Warehouse_di" bpmnElement="Lane_Warehouse" isHorizontal="true">
+        <dc:Bounds x="190" y="760" width="2170" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systems_di" bpmnElement="Lane_Systems" isHorizontal="true">
+        <dc:Bounds x="190" y="510" width="2170" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_ClaimSubmitted_di" bpmnElement="Event_ClaimSubmitted">
+        <dc:Bounds x="352" y="1202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="341" y="1238" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TriageClaim_di" bpmnElement="Task_TriageClaim">
+        <dc:Bounds x="440" y="1180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IsClaimValid_di" bpmnElement="Gateway_IsClaimValid" isMarkerVisible="true">
+        <dc:Bounds x="595" y="1195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="591" y="1245" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyClaimRejection_di" bpmnElement="Task_NotifyClaimRejection">
+        <dc:Bounds x="570" y="1080" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndClaimRejected_di" bpmnElement="Event_EndClaimRejected">
+        <dc:Bounds x="722" y="1102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="711" y="1138" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ResolutionPath_di" bpmnElement="Gateway_ResolutionPath" isMarkerVisible="true">
+        <dc:Bounds x="755" y="1195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="736" y="1245" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndRefund_di" bpmnElement="Event_EndRefund">
+        <dc:Bounds x="2292" y="632" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2274" y="668" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendRefundConfirmation_di" bpmnElement="Task_SendRefundConfirmation">
+        <dc:Bounds x="2130" y="610" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ExecuteRefund_di" bpmnElement="Task_ExecuteRefund">
+        <dc:Bounds x="1940" y="610" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RouteToResale_di" bpmnElement="Task_RouteToResale">
+        <dc:Bounds x="1800" y="780" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RouteToRefurb_di" bpmnElement="Task_RouteToRefurb">
+        <dc:Bounds x="1800" y="910" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ItemCondition_di" bpmnElement="Gateway_ItemCondition" isMarkerVisible="true">
+        <dc:Bounds x="1635" y="855" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1699" y="873" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GradeItemCondition_di" bpmnElement="Task_GradeItemCondition">
+        <dc:Bounds x="1480" y="840" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendReceiptNotification_di" bpmnElement="Task_SendReceiptNotification">
+        <dc:Bounds x="1320" y="840" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReceiveParcel_di" bpmnElement="Task_ReceiveParcel">
+        <dc:Bounds x="1150" y="840" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_CarrierScanReceived_di" bpmnElement="Event_CarrierScanReceived">
+        <dc:Bounds x="1032" y="862" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="898" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ValidateEligibility_di" bpmnElement="Task_ValidateEligibility">
+        <dc:Bounds x="250" y="860" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RequestValid_di" bpmnElement="Gateway_RequestValid" isMarkerVisible="true">
+        <dc:Bounds x="665" y="875" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="647" y="925" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateDocs_di" bpmnElement="Task_GenerateDocs">
+        <dc:Bounds x="1030" y="620" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendAuthorization_di" bpmnElement="Task_SendAuthorization">
+        <dc:Bounds x="810" y="620" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyRejection_di" bpmnElement="Task_NotifyRejection">
+        <dc:Bounds x="640" y="520" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndRejection_di" bpmnElement="Event_EndRejection">
+        <dc:Bounds x="872" y="542" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="853" y="578" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndEscalation_di" bpmnElement="Event_EndEscalation">
+        <dc:Bounds x="1812" y="1122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1791" y="1158" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EscalationReview_di" bpmnElement="Task_EscalationReview">
+        <dc:Bounds x="1530" y="1100" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RedirectToManufacturer_di" bpmnElement="Task_RedirectToManufacturer">
+        <dc:Bounds x="1030" y="1100" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendWarrantyLabel_di" bpmnElement="Task_SendWarrantyLabel">
+        <dc:Bounds x="920" y="1270" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RefundWithoutReturn_di" bpmnElement="Task_RefundWithoutReturn">
+        <dc:Bounds x="920" y="1180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndClaimResolved_di" bpmnElement="Event_EndClaimResolved">
+        <dc:Bounds x="1182" y="1202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1170" y="1238" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_EndClaimHandedOff_di" bpmnElement="Event_EndClaimHandedOff">
+        <dc:Bounds x="1182" y="1122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1171" y="1158" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_TimerEscalation_di" bpmnElement="Event_TimerEscalation">
+        <dc:Bounds x="1192" y="902" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1170" y="938" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_W1_di" bpmnElement="Flow_W1">
+        <di:waypoint x="388" y="1220" />
+        <di:waypoint x="440" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W2_di" bpmnElement="Flow_W2">
+        <di:waypoint x="540" y="1220" />
+        <di:waypoint x="595" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W_Valid_di" bpmnElement="Flow_W_Valid">
+        <di:waypoint x="645" y="1220" />
+        <di:waypoint x="755" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="690" y="1195" width="21" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W_Invalid_di" bpmnElement="Flow_W_Invalid">
+        <di:waypoint x="620" y="1195" />
+        <di:waypoint x="620" y="1120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="625" y="1183" width="21" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W5_di" bpmnElement="Flow_W5">
+        <di:waypoint x="670" y="1120" />
+        <di:waypoint x="722" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W_Redirect_di" bpmnElement="Flow_W_Redirect">
+        <di:waypoint x="780" y="1195" />
+        <di:waypoint x="780" y="1140" />
+        <di:waypoint x="1030" y="1140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="751" y="1158" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W_RefundNoReturn_di" bpmnElement="Flow_W_RefundNoReturn">
+        <di:waypoint x="805" y="1220" />
+        <di:waypoint x="920" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="821" y="1195" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W_ReturnForRefund_di" bpmnElement="Flow_W_ReturnForRefund">
+        <di:waypoint x="780" y="1245" />
+        <di:waypoint x="780" y="1310" />
+        <di:waypoint x="920" y="1310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="755" y="1276" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R11_di" bpmnElement="Flow_R11">
+        <di:waypoint x="2230" y="650" />
+        <di:waypoint x="2292" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R10_di" bpmnElement="Flow_R10">
+        <di:waypoint x="2040" y="650" />
+        <di:waypoint x="2130" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R8_di" bpmnElement="Flow_R8">
+        <di:waypoint x="1900" y="820" />
+        <di:waypoint x="1990" y="820" />
+        <di:waypoint x="1990" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R9_di" bpmnElement="Flow_R9">
+        <di:waypoint x="1900" y="950" />
+        <di:waypoint x="1990" y="950" />
+        <di:waypoint x="1990" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AGrade_di" bpmnElement="Flow_AGrade">
+        <di:waypoint x="1660" y="855" />
+        <di:waypoint x="1660" y="820" />
+        <di:waypoint x="1800" y="820" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1636" y="828" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_BGrade_di" bpmnElement="Flow_BGrade">
+        <di:waypoint x="1660" y="905" />
+        <di:waypoint x="1660" y="950" />
+        <di:waypoint x="1800" y="950" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1630" y="928" width="59" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R7_di" bpmnElement="Flow_R7">
+        <di:waypoint x="1580" y="880" />
+        <di:waypoint x="1635" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R6_di" bpmnElement="Flow_R6">
+        <di:waypoint x="1420" y="880" />
+        <di:waypoint x="1480" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R5_di" bpmnElement="Flow_R5">
+        <di:waypoint x="1250" y="880" />
+        <di:waypoint x="1320" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R4_di" bpmnElement="Flow_R4">
+        <di:waypoint x="1068" y="880" />
+        <di:waypoint x="1150" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R1_di" bpmnElement="Flow_R1">
+        <di:waypoint x="350" y="900" />
+        <di:waypoint x="665" y="900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Valid_di" bpmnElement="Flow_Valid">
+        <di:waypoint x="715" y="900" />
+        <di:waypoint x="715" y="660" />
+        <di:waypoint x="810" y="660" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="698" y="803" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Invalid_di" bpmnElement="Flow_Invalid">
+        <di:waypoint x="690" y="875" />
+        <di:waypoint x="690" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="641" y="846" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R2_di" bpmnElement="Flow_R2">
+        <di:waypoint x="910" y="650" />
+        <di:waypoint x="1030" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R3_di" bpmnElement="Flow_R3">
+        <di:waypoint x="740" y="560" />
+        <di:waypoint x="872" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R13_di" bpmnElement="Flow_R13">
+        <di:waypoint x="1630" y="1140" />
+        <di:waypoint x="1812" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R12_di" bpmnElement="Flow_R12">
+        <di:waypoint x="1228" y="938" />
+        <di:waypoint x="1228" y="1140" />
+        <di:waypoint x="1530" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W3_di" bpmnElement="Flow_W3">
+        <di:waypoint x="1130" y="1140" />
+        <di:waypoint x="1182" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_W4_di" bpmnElement="Flow_W4">
+        <di:waypoint x="1020" y="1220" />
+        <di:waypoint x="1182" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_Carrier_di" bpmnElement="Participant_Carrier" isHorizontal="true">
+        <dc:Bounds x="160" y="390" width="2200" height="120" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportParcel_di" bpmnElement="Task_TransportParcel">
+        <dc:Bounds x="890" y="410" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Manufacturer_di" bpmnElement="Participant_Manufacturer" isHorizontal="true">
+        <dc:Bounds x="160" y="1360" width="2200" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1_di" bpmnElement="Association_1">
+        <di:waypoint x="300" y="940" />
+        <di:waypoint x="300" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReceiptNotification_di" bpmnElement="MessageFlow_ReceiptNotification">
+        <di:waypoint x="1370" y="840" />
+        <di:waypoint x="1370" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_RefundConfirmation_di" bpmnElement="MessageFlow_RefundConfirmation">
+        <di:waypoint x="2180" y="610" />
+        <di:waypoint x="2180" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_WarrantyLabel_di" bpmnElement="MessageFlow_WarrantyLabel">
+        <di:waypoint x="970" y="1270" />
+        <di:waypoint x="970" y="740" />
+        <di:waypoint x="1430" y="740" />
+        <di:waypoint x="1430" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_DefectiveDropOff_di" bpmnElement="MessageFlow_DefectiveDropOff">
+        <di:waypoint x="1410" y="290" />
+        <di:waypoint x="940" y="290" />
+        <di:waypoint x="940" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_PackageDropOff_di" bpmnElement="MessageFlow_PackageDropOff">
+        <di:waypoint x="1620" y="200" />
+        <di:waypoint x="1620" y="355" />
+        <di:waypoint x="940" y="355" />
+        <di:waypoint x="940" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReturnDocs_di" bpmnElement="MessageFlow_ReturnDocs">
+        <di:waypoint x="860" y="620" />
+        <di:waypoint x="860" y="160" />
+        <di:waypoint x="1180" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReturnRequest_di" bpmnElement="MessageFlow_ReturnRequest">
+        <di:waypoint x="380" y="240" />
+        <di:waypoint x="380" y="550" />
+        <di:waypoint x="280" y="550" />
+        <di:waypoint x="280" y="860" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_WarrantyClaim_di" bpmnElement="MessageFlow_WarrantyClaim">
+        <di:waypoint x="540" y="370" />
+        <di:waypoint x="540" y="786" />
+        <di:waypoint x="370" y="786" />
+        <di:waypoint x="370" y="1202" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_CarrierScan_di" bpmnElement="MessageFlow_CarrierScan">
+        <di:waypoint x="940" y="490" />
+        <di:waypoint x="940" y="880" />
+        <di:waypoint x="1032" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_RedirectToManufacturer_di" bpmnElement="MessageFlow_RedirectToManufacturer">
+        <di:waypoint x="1080" y="1180" />
+        <di:waypoint x="1080" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_1_di" bpmnElement="TextAnnotation_1">
+        <dc:Bounds x="240" y="940" width="119.99759747391543" height="112.57550796265788" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
